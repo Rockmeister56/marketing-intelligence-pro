@@ -1,16 +1,3 @@
-app.post('/api/debug-scan', (req, res) => {
-    const { industry, location } = req.body;
-    const leads = generateRealisticLeads(industry, location, 3); // Just 3 for testing
-    
-    console.log('Sample lead data:', JSON.stringify(leads[0], null, 2));
-    
-    res.json({
-        sampleLead: leads[0],
-        allLeads: leads,
-        stats: calculateStats(leads)
-    });
-});
-
 const express = require('express');
 const https = require('https');
 const http = require('http');
