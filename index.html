@@ -219,6 +219,17 @@ const top3Leads = document.getElementById('top3Leads');
     console.log('Received leads:', leads); // Debug log
     console.log('Received stats:', stats); // Debug log
     
+    // Safely update all stats - only if elements exist
+    if (totalLeads) totalLeads.textContent = stats.total || 0;
+    if (chatLeads) chatLeads.textContent = stats.withChat || 0;
+    if (formLeads) formLeads.textContent = stats.withForm || 0;
+    if (contactLeads) contactLeads.textContent = stats.withContact || 0;
+    
+    // Only update if these elements exist
+    if (sponsoredLeads) sponsoredLeads.textContent = stats.sponsored || 0;
+    if (firstPageLeads) firstPageLeads.textContent = stats.firstPage || 0;
+    if (top3Leads) top3Leads.textContent = stats.top3 || 0;
+    
     // Safely update stats with fallbacks
     totalLeads.textContent = stats?.total || 0;
     chatLeads.textContent = stats?.withChat || 0;
@@ -338,10 +349,35 @@ const top3Leads = document.getElementById('top3Leads');
             }
         }
 
-        // Initialize
-        updateSearchQuery();
-        addLog('✅ Marketing Intelligence Pro v2.0 Ready!', 'success');
-        addLog('🔍 Real Google scraping + website analysis enabled', 'info');
+       // Wait for DOM to be fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Re-initialize DOM elements to ensure they're available
+    const scanBtn = document.getElementById('scanBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const industrySelect = document.getElementById('industry');
+    const locationInput = document.getElementById('location');
+    const searchQueryInput = document.getElementById('searchQuery');
+    const leadsContainer = document.getElementById('leadsContainer');
+    const progressBar = document.getElementById('progressBar');
+    const realTimeLog = document.getElementById('realTimeLog');
+    const totalLeads = document.getElementById('totalLeads');
+    const chatLeads = document.getElementById('chatLeads');
+    const formLeads = document.getElementById('formLeads');
+    const contactLeads = document.getElementById('contactLeads');
+    const sponsoredLeads = document.getElementById('sponsoredLeads');
+    const firstPageLeads = document.getElementById('firstPageLeads');
+    const top3Leads = document.getElementById('top3Leads');
+
+    // Re-attach event listeners
+    scanBtn.addEventListener('click', startRealScan);
+    exportBtn.addEventListener('click', exportToCSV);
+    industrySelect.addEventListener('change', updateSearchQuery);
+
+    // Initialize
+    updateSearchQuery();
+    addLog('✅ Marketing Intelligence Pro v2.0 Ready!', 'success');
+    addLog('🔍 Real Google scraping + website analysis enabled', 'info');
+});
     </script>
 </body>
 </html>
