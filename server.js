@@ -1,5 +1,7 @@
 const express = require('express');
-const axios = require('axios');
+const https = require('https');
+const http = require('http');
+const { parse } = require('url');
 const cheerio = require('cheerio');
 const cors = require('cors');
 const { createObjectCsvWriter } = require('csv-writer');
@@ -12,6 +14,47 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+// Simple HTTP client without axios/undici
+function fetchWebsite(url) {
+    return new Promise((resolve, reject) => {
+        const parsedUrl = parse(url);
+        const client = parsedUrl.protocol === 'https:' ? https : http;
+        
+        const options = {
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.path,
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            },
+            timeout: 10000
+        };
+        
+        const req = client.request(options, (res) => {
+            let data = '';
+            
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            
+            res.on('end', () => {
+                resolve(data);
+            });
+        });
+        
+        req.on('error', (error) => {
+            reject(error);
+        });
+        
+        req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Request timeout'));
+        });
+        
+        req.end();
+    });
+}
 
 // Industry configurations
 const industryConfigs = {
@@ -47,21 +90,15 @@ const industryConfigs = {
     }
 };
 
-// Advanced website scanner without Puppeteer
+// Website scanner without axios/undici
 app.post('/api/scan-website', async (req, res) => {
     const { url } = req.body;
     
     try {
         console.log(`🔍 Scanning website: ${url}`);
         
-        const response = await axios.get(url, {
-            timeout: 15000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-        });
-        
-        const $ = cheerio.load(response.data);
+        const html = await fetchWebsite(url);
+        const $ = cheerio.load(html);
         
         // Detect contact forms
         const forms = $('form');
@@ -88,8 +125,7 @@ app.post('/api/scan-website', async (req, res) => {
             '.intercom', '.drift', '.livechat', 
             '.tawk-button', '.olark', '.purechat',
             '[class*="live-support"]', '[id*="support-chat"]',
-            '.zendesk', '.helpcrunch', '.crisp',
-            '.userlike', '.jivosite', '.clickdesk'
+            '.zendesk', '.helpcrunch', '.crisp'
         ];
         
         const hasChat = chatSelectors.some(selector => $(selector).length > 0);
@@ -160,7 +196,7 @@ function generateInsights(hasChat, hasForm, phones, emails, score) {
     return insights;
 }
 
-// Industry search with sample data (ready for real API integration)
+// Industry search with sample data
 app.post('/api/search-industry', async (req, res) => {
     const { industry, location, customQuery } = req.body;
     
@@ -183,7 +219,7 @@ app.post('/api/search-industry', async (req, res) => {
             success: true, 
             leads: leads,
             stats: stats,
-            message: `Found ${leads.length} ${industry} leads in ${location}. Ready for real Google search integration!`
+            message: `Found ${leads.length} ${industry} leads in ${location}`
         });
         
     } catch (error) {
@@ -196,36 +232,12 @@ app.post('/api/search-industry', async (req, res) => {
 
 function generateSampleLeads(industry, location, count = 12) {
     const businessTemplates = {
-        dental: [
-            "Perfect Smile Dental", "Bright Now Dental", "Aspen Dental", "Western Dental", 
-            "Coast Dental", "Modern Dentistry", "Elite Dental Care", "Premier Dental",
-            "Family Dental Center", "Cosmetic Dentistry", "Emergency Dental", "Smile Design"
-        ],
-        mortgage: [
-            "Rocket Mortgage", "Quicken Loans", "Wells Fargo Mortgage", "Bank of America Home Loans",
-            "Chase Mortgage", "LoanDepot", "Freedom Mortgage", "Guaranteed Rate",
-            "New American Funding", "Fairway Mortgage", "Movement Mortgage", "Caliber Home Loans"
-        ],
-        lawyer: [
-            "Morgan & Morgan", "Cellino & Barnes", "Jacoby & Meyers", "Weitz & Luxenberg",
-            "Simmons Hanly", "Anapol Weiss", "Levin Papantonio", "Lieff Cabraser",
-            "Baron & Budd", "Girardi Keese", "Personal Injury Law", "Legal Defense Group"
-        ],
-        realestate: [
-            "Keller Williams", "RE/MAX", "Coldwell Banker", "Century 21",
-            "Sotheby's Realty", "Redfin", "Zillow Premier", "Compass Real Estate",
-            "Better Homes", "ERA Real Estate", "Local Properties", "Premier Agents"
-        ],
-        insurance: [
-            "State Farm", "Geico", "Progressive", "Allstate",
-            "Liberty Mutual", "Nationwide", "Farmers Insurance", "Travelers",
-            "American Family", "USAA", "Local Insurance", "Premier Coverage"
-        ],
-        medical: [
-            "Mayo Clinic", "Cleveland Clinic", "Johns Hopkins", "Mass General",
-            "UCLA Health", "NYU Langone", "Northwestern Medicine", "Stanford Health",
-            "Cedars-Sinai", "Mount Sinai", "Local Medical", "Healthcare Partners"
-        ]
+        dental: ["Perfect Smile Dental", "Bright Now Dental", "Aspen Dental", "Western Dental", "Coast Dental", "Modern Dentistry", "Elite Dental Care", "Premier Dental", "Family Dental Center", "Cosmetic Dentistry", "Emergency Dental", "Smile Design"],
+        mortgage: ["Rocket Mortgage", "Quicken Loans", "Wells Fargo Mortgage", "Bank of America Home Loans", "Chase Mortgage", "LoanDepot", "Freedom Mortgage", "Guaranteed Rate", "New American Funding", "Fairway Mortgage", "Movement Mortgage", "Caliber Home Loans"],
+        lawyer: ["Morgan & Morgan", "Cellino & Barnes", "Jacoby & Meyers", "Weitz & Luxenberg", "Simmons Hanly", "Anapol Weiss", "Levin Papantonio", "Lieff Cabraser", "Baron & Budd", "Girardi Keese", "Personal Injury Law", "Legal Defense Group"],
+        realestate: ["Keller Williams", "RE/MAX", "Coldwell Banker", "Century 21", "Sotheby's Realty", "Redfin", "Zillow Premier", "Compass Real Estate", "Better Homes", "ERA Real Estate", "Local Properties", "Premier Agents"],
+        insurance: ["State Farm", "Geico", "Progressive", "Allstate", "Liberty Mutual", "Nationwide", "Farmers Insurance", "Travelers", "American Family", "USAA", "Local Insurance", "Premier Coverage"],
+        medical: ["Mayo Clinic", "Cleveland Clinic", "Johns Hopkins", "Mass General", "UCLA Health", "NYU Langone", "Northwestern Medicine", "Stanford Health", "Cedars-Sinai", "Mount Sinai", "Local Medical", "Healthcare Partners"]
     };
     
     const suffixes = ["Inc", "LLC", "Group", "Associates", "Partners", "Center", "Clinic", "Solutions"];
@@ -236,10 +248,10 @@ function generateSampleLeads(industry, location, count = 12) {
         const name = `${baseName} ${suffix}`;
         
         // Realistic distribution for demo
-        const hasChat = i < 4; // 33% have chat
-        const hasForm = i < 8; // 66% have forms
-        const hasPhone = i < 10; // 83% have phones
-        const hasEmail = i < 6; // 50% have emails
+        const hasChat = i < 4;
+        const hasForm = i < 8;
+        const hasPhone = i < 10;
+        const hasEmail = i < 6;
         
         const score = (hasChat ? 10 : 0) + (hasForm ? 8 : 0) + 
                      (hasPhone ? 3 : 0) + (hasEmail ? 2 : 0);
@@ -262,47 +274,9 @@ function generateSampleLeads(industry, location, count = 12) {
     }).sort((a, b) => b.score - a.score);
 }
 
-// CSV Export endpoint
-app.post('/api/export-csv', async (req, res) => {
-    const { leads, industry } = req.body;
-    
-    try {
-        const timestamp = new Date().toISOString().split('T')[0];
-        const filename = `leads-${industry}-${timestamp}.csv`;
-        
-        const csvWriter = createObjectCsvWriter({
-            path: path.join('/tmp', filename),
-            header: [
-                { id: 'name', title: 'BUSINESS_NAME' },
-                { id: 'website', title: 'WEBSITE' },
-                { id: 'phone', title: 'PHONE' },
-                { id: 'email', title: 'EMAIL' },
-                { id: 'hasChat', title: 'HAS_LIVE_CHAT' },
-                { id: 'hasForm', title: 'HAS_CONTACT_FORM' },
-                { id: 'score', title: 'LEAD_SCORE' },
-                { id: 'location', title: 'LOCATION' },
-                { id: 'industry', title: 'INDUSTRY' }
-            ]
-        });
-        
-        await csvWriter.writeRecords(leads);
-        
-        res.download(path.join('/tmp', filename), filename, (err) => {
-            if (err) {
-                console.error('Download error:', err);
-                res.status(500).json({ error: 'Download failed' });
-            }
-        });
-        
-    } catch (error) {
-        console.error('CSV export error:', error);
-        res.status(500).json({ error: 'Export failed: ' + error.message });
-    }
-});
-
 app.listen(PORT, () => {
-    console.log(`🚀 Marketing Intelligence Pro - CHROME-LESS VERSION`);
+    console.log(`🚀 Marketing Intelligence Pro - COMPATIBLE VERSION`);
     console.log(`✅ Running on port: ${PORT}`);
-    console.log(`✅ Ready to scan websites for forms & chat widgets!`);
-    console.log(`✅ Industries: ${Object.keys(industryConfigs).join(', ')}`);
+    console.log(`✅ No axios/undici - Pure Node.js HTTP client`);
+    console.log(`✅ Ready to scan websites!`);
 });
