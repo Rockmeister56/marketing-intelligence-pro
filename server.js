@@ -1,21 +1,10 @@
-// DOM elements
-const scanBtn = document.getElementById('scanBtn');
-const exportBtn = document.getElementById('exportBtn');
-const industrySelect = document.getElementById('industry');
-const locationInput = document.getElementById('location');
-const searchQueryInput = document.getElementById('searchQuery');
-const leadsContainer = document.getElementById('leadsContainer');
-const progressBar = document.getElementById('progressBar');
-const realTimeLog = document.getElementById('realTimeLog');
-const totalLeads = document.getElementById('totalLeads');
-const chatLeads = document.getElementById('chatLeads');
-const formLeads = document.getElementById('formLeads');
-const contactLeads = document.getElementById('contactLeads');
-
-// NEW: Add these for ranking stats
-const sponsoredLeads = document.getElementById('sponsoredLeads');
-const firstPageLeads = document.getElementById('firstPageLeads');
-const top3Leads = document.getElementById('top3Leads');
+const express = require('express');
+const https = require('https');
+const http = require('http');
+const { parse } = require('url');
+const cheerio = require('cheerio');
+const cors = require('cors');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
