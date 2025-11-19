@@ -118,7 +118,10 @@ app.post('/api/scan-industry', async (req, res) => {
         // Generate mixed results: real scans + realistic samples
         const realLeads = await scanRealWebsites(industry, location);
         const sampleLeads = generateRealisticLeads(industry, location, 12);
-        const allLeads = [...realLeads, ...sampleLeads].slice(0, 20);
+        
+        // Apply ranking simulation to ALL leads
+        const allLeadsWithRanking = simulateGoogleRanking([...realLeads, ...sampleLeads], industry, location);
+        const allLeads = allLeadsWithRanking.slice(0, 20);
         
         const stats = calculateStats(allLeads);
         
@@ -313,7 +316,7 @@ function simulateGoogleRanking(leads, industry, location) {
             rankingSource = 'organic_lower';
         }
         
-        // Ensure ALL data is populated
+        // Ensure ALL data is populated for frontend
         return {
             ...lead,
             googlePosition: position || 99,
@@ -387,8 +390,8 @@ function calculateAdSpendLikelihood(lead, position, isSponsored) {
     return likelihood;
 }
 
-// Enhanced lead generation with ranking data
-function generateRealisticLeads(industry, location, count = 15) {
+// SINGLE CORRECTED lead generation function
+function generateRealisticLeads(industry, location, count = 12) {
     const templates = {
         dental: ["Smile Perfect Dental", "Bright Now Dentistry", "Family Dental Care", "Modern Dental Solutions", "Elite Dental Group"],
         mortgage: ["Premier Mortgage Solutions", "Home Loan Experts", "First Rate Mortgage", "Capital Lending Group"],
@@ -429,8 +432,7 @@ function generateRealisticLeads(industry, location, count = 15) {
         };
     }).sort((a, b) => b.score - a.score);
     
-    // Add ranking data
-    return simulateGoogleRanking(baseLeads, industry, location);
+    return baseLeads;
 }
 
 // Generate realistic phone numbers
@@ -440,55 +442,12 @@ function generateRealisticPhone(index) {
     
     const areaCode = areaCodes[Math.floor(Math.random() * areaCodes.length)];
     const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-    const lineNumber = 1000 + (index * 37) % 9000; // More random distribution
+    const lineNumber = 1000 + (index * 37) % 9000;
     
     return `(${areaCode}) ${prefix}-${lineNumber}`;
 }
 
-// ENHANCED LEAD GENERATION
-function generateRealisticLeads(industry, location, count = 12) {
-    const templates = {
-        dental: ["Smile Perfect Dental", "Bright Now Dentistry", "Family Dental Care", "Modern Dental Solutions", "Elite Dental Group"],
-        mortgage: ["Premier Mortgage Solutions", "Home Loan Experts", "First Rate Mortgage", "Capital Lending Group"],
-        lawyer: ["Justice Law Partners", "Elite Legal Defense", "Premier Law Group", "City Law Associates"],
-        realestate: ["Premier Properties", "Elite Realty Group", "Dream Home Realty", "City Real Estate Partners"],
-        insurance: ["Secure Insurance Solutions", "Trusted Coverage Inc", "Premier Protection", "Family Insurance Group"]
-    };
-    
-    const industryTemplates = templates[industry] || templates.dental;
-    
-    return Array.from({ length: count }, (_, i) => {
-        const baseName = industryTemplates[i % industryTemplates.length];
-        const name = `${baseName} - ${location}`;
-        const domain = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        
-        // Realistic probability distribution
-        const hasChat = i < 4; // 33% have chat
-        const hasForm = i < 8; // 66% have forms
-        const hasPhone = i < 10; // 83% have phones
-        const hasEmail = i < 7; // 58% have emails
-        
-        const phones = hasPhone ? [`(${555}) ${400 + i}-${2000 + i}`] : [];
-        const emails = hasEmail ? [`contact@${domain}.com`] : [];
-        
-        const score = 5 + (hasChat ? 8 : 0) + (hasForm ? 7 : 0) + 
-                     (phones.length ? 3 : 0) + (emails.length ? 2 : 0);
-        
-        return {
-            name,
-            website: `https://www.${domain}.com`,
-            location,
-            score: Math.min(score, 20),
-            hasChat,
-            hasForm,
-            phones,
-            emails,
-            description: `Professional ${industry} services in ${location}`
-        };
-    }).sort((a, b) => b.score - a.score);
-}
-
-// Add this to your stats calculation in server.js
+// Stats calculation
 function calculateStats(leads) {
     const sponsoredCount = leads.filter(l => l.isSponsored).length;
     const firstPageCount = leads.filter(l => l.googlePosition <= 8).length;
@@ -505,7 +464,7 @@ function calculateStats(leads) {
     };
 }
 
-// ENHANCED CSV EXPORT
+// ENHANCED CSV EXPORT - Include ALL new fields
 app.post('/api/export-csv', async (req, res) => {
     const { leads, industry } = req.body;
     
@@ -523,6 +482,11 @@ app.post('/api/export-csv', async (req, res) => {
             'Contact Form': lead.hasForm ? 'Yes' : 'No',
             'Phone Numbers': lead.phones.join('; '),
             'Email Addresses': lead.emails.join('; '),
+            'Google Position': lead.googlePosition || 'N/A',
+            'Sponsored Ad': lead.isSponsored ? 'Yes' : 'No',
+            'Ranking Badge': lead.rankingBadge || 'N/A',
+            'Map Presence': lead.mapPresence ? 'Yes' : 'No',
+            'Ad Spend Likelihood': lead.adSpendLikelihood || 'Unknown',
             'Description': lead.description || '',
             'Analysis Date': new Date().toISOString().split('T')[0]
         }));
