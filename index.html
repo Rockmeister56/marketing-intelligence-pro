@@ -211,12 +211,18 @@
             }
         }
 
-       function displayResults(leads, stats) {
     // Update stats
-    totalLeads.textContent = stats.total;
-    chatLeads.textContent = stats.withChat;
-    formLeads.textContent = stats.withForm;
-    contactLeads.textContent = stats.withContact;
+    function displayResults(leads, stats) {
+    // Update ALL stats (including the new ones)
+    if (totalLeads) totalLeads.textContent = stats.total;
+    if (chatLeads) chatLeads.textContent = stats.withChat;
+    if (formLeads) formLeads.textContent = stats.withForm;
+    if (contactLeads) contactLeads.textContent = stats.withContact;
+    
+    // NEW: Update ranking stats (safely)
+    if (sponsoredLeads) sponsoredLeads.textContent = stats.sponsored || 0;
+    if (firstPageLeads) firstPageLeads.textContent = stats.firstPage || 0;
+    if (top3Leads) top3Leads.textContent = stats.top3 || 0;
 
     // Display leads with ranking information
     leadsContainer.innerHTML = leads.map(lead => `
