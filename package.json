@@ -1,19 +1,17 @@
 {
   "name": "marketing-intelligence-pro",
   "version": "1.0.0",
+  "description": "Real website scanning and lead generation",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "axios": "^1.6.0",
     "cheerio": "^1.0.0-rc.12",
-    "cors": "^2.8.5",
-    "validator": "^13.11.0",
-    "csv-writer": "^1.6.0"
+    "cors": "^2.8.5"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=14.0.0"
   }
 }

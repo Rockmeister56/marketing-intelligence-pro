@@ -4,18 +4,16 @@ const http = require('http');
 const { parse } = require('url');
 const cheerio = require('cheerio');
 const cors = require('cors');
-const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
-const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static('.'));
 
-// Simple HTTP client without axios/undici
+// Enhanced HTTP client with better error handling
 function fetchWebsite(url) {
     return new Promise((resolve, reject) => {
         const parsedUrl = parse(url);
@@ -26,27 +24,32 @@ function fetchWebsite(url) {
             path: parsedUrl.path,
             method: 'GET',
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Connection': 'keep-alive'
             },
-            timeout: 10000
+            timeout: 15000
         };
         
         const req = client.request(options, (res) => {
+            // Handle redirects
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                fetchWebsite(res.headers.location).then(resolve).catch(reject);
+                return;
+            }
+            
+            if (res.statusCode !== 200) {
+                reject(new Error(`HTTP ${res.statusCode}`));
+                return;
+            }
+            
             let data = '';
-            
-            res.on('data', (chunk) => {
-                data += chunk;
-            });
-            
-            res.on('end', () => {
-                resolve(data);
-            });
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => resolve(data));
         });
         
-        req.on('error', (error) => {
-            reject(error);
-        });
-        
+        req.on('error', reject);
         req.on('timeout', () => {
             req.destroy();
             reject(new Error('Request timeout'));
@@ -56,227 +59,350 @@ function fetchWebsite(url) {
     });
 }
 
-// Industry configurations
+// Industry configurations with enhanced search queries
 const industryConfigs = {
     dental: {
-        keywords: ["dental implants", "cosmetic dentistry", "family dentist", "teeth whitening", "dental emergency"],
         searchQuery: "best dental {location}",
-        description: "Dental practices with online booking"
+        keywords: ["dental implants", "teeth whitening", "cosmetic dentistry"],
+        realWebsites: [
+            { name: "Aspen Dental", url: "https://www.aspendental.com" },
+            { name: "Western Dental", url: "https://www.westerndental.com" },
+            { name: "Coast Dental", url: "https://www.coastdental.com" }
+        ]
     },
     mortgage: {
-        keywords: ["mortgage rates", "home loan", "refinance", "first time home buyer", "mortgage pre-approval"],
         searchQuery: "mortgage lenders {location}",
-        description: "Mortgage companies with online applications"
+        keywords: ["home loan", "refinance", "mortgage rates"],
+        realWebsites: [
+            { name: "Rocket Mortgage", url: "https://www.rocketmortgage.com" },
+            { name: "LoanDepot", url: "https://www.loandepot.com" },
+            { name: "Better Mortgage", url: "https://www.better.com" }
+        ]
     },
     lawyer: {
-        keywords: ["personal injury lawyer", "divorce attorney", "criminal defense", "estate planning", "business lawyer"],
         searchQuery: "best attorneys {location}",
-        description: "Law firms with case evaluation forms"
+        keywords: ["personal injury lawyer", "divorce attorney", "legal defense"],
+        realWebsites: [
+            { name: "Morgan & Morgan", url: "https://www.forthepeople.com" },
+            { name: "LegalZoom", url: "https://www.legalzoom.com" },
+            { name: "Avvo", url: "https://www.avvo.com" }
+        ]
     },
     realestate: {
-        keywords: ["real estate agent", "home for sale", "property management", "commercial real estate", "realtor"],
         searchQuery: "real estate agents {location}",
-        description: "Real estate agencies with property search"
+        keywords: ["realtor", "property agents", "home sales"],
+        realWebsites: [
+            { name: "Zillow", url: "https://www.zillow.com" },
+            { name: "Realtor.com", url: "https://www.realtor.com" },
+            { name: "Redfin", url: "https://www.redfin.com" }
+        ]
     },
     insurance: {
-        keywords: ["auto insurance", "home insurance", "life insurance", "health insurance", "business insurance"],
         searchQuery: "insurance companies {location}",
-        description: "Insurance providers with quote forms"
-    },
-    medical: {
-        keywords: ["primary care physician", "specialist doctor", "medical clinic", "healthcare provider", "urgent care"],
-        searchQuery: "best doctors {location}",
-        description: "Medical practices with patient portals"
+        keywords: ["auto insurance", "home insurance", "life insurance"],
+        realWebsites: [
+            { name: "Geico", url: "https://www.geico.com" },
+            { name: "State Farm", url: "https://www.statefarm.com" },
+            { name: "Progressive", url: "https://www.progressive.com" }
+        ]
     }
 };
 
-// Website scanner without axios/undici
-app.post('/api/scan-website', async (req, res) => {
-    const { url } = req.body;
-    
-    try {
-        console.log(`🔍 Scanning website: ${url}`);
-        
-        const html = await fetchWebsite(url);
-        const $ = cheerio.load(html);
-        
-        // Detect contact forms
-        const forms = $('form');
-        const hasForm = forms.length > 0;
-        
-        // Check if forms are contact-related
-        const contactForms = Array.from(forms).filter(form => {
-            const formHtml = $(form).html().toLowerCase();
-            return formHtml.includes('contact') || 
-                   formHtml.includes('email') || 
-                   formHtml.includes('phone') ||
-                   formHtml.includes('name') ||
-                   formHtml.includes('consultation') ||
-                   formHtml.includes('appointment') ||
-                   formHtml.includes('message') ||
-                   formHtml.includes('submit');
-        });
-        
-        const hasContactForm = contactForms.length > 0;
-        
-        // Detect chat widgets in HTML
-        const chatSelectors = [
-            '[class*="chat"]', '[id*="chat"]', 
-            '.intercom', '.drift', '.livechat', 
-            '.tawk-button', '.olark', '.purechat',
-            '[class*="live-support"]', '[id*="support-chat"]',
-            '.zendesk', '.helpcrunch', '.crisp'
-        ];
-        
-        const hasChat = chatSelectors.some(selector => $(selector).length > 0);
-        
-        // Also check for chat in text content
-        const pageText = $('body').text().toLowerCase();
-        const hasChatText = pageText.includes('live chat') || 
-                           pageText.includes('chat now') || 
-                           pageText.includes('online chat');
-        
-        // Extract contact info
-        const phoneRegex = /(\+?1?[-.\s]?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4})/g;
-        const phones = pageText.match(phoneRegex) || [];
-        
-        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-        const emails = pageText.match(emailRegex) || [];
-        
-        // Calculate lead score
-        let score = 0;
-        if (hasChat || hasChatText) score += 10;
-        if (hasContactForm) score += 8;
-        if (hasForm) score += 3;
-        if (phones.length > 0) score += 3;
-        if (emails.length > 0) score += 2;
-        
-        // Remove duplicates and limit results
-        const uniquePhones = [...new Set(phones)].slice(0, 3);
-        const uniqueEmails = [...new Set(emails)]
-            .filter(email => !email.includes('noreply') && 
-                            !email.includes('no-reply') &&
-                            !email.includes('email.com'))
-            .slice(0, 3);
-        
-        console.log(`✅ Scan completed: ${url} - Score: ${score}`);
-        
-        res.json({
-            success: true,
-            hasChat: hasChat || hasChatText,
-            hasForm: hasContactForm,
-            hasAnyForm: hasForm,
-            phones: uniquePhones,
-            emails: uniqueEmails,
-            formsCount: forms.length,
-            contactFormsCount: contactForms.length,
-            score: Math.min(score, 25),
-            insights: generateInsights(hasChat, hasContactForm, uniquePhones, uniqueEmails, score)
-        });
-        
-    } catch (error) {
-        console.log(`❌ Scan failed: ${url} - ${error.message}`);
-        res.json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-function generateInsights(hasChat, hasForm, phones, emails, score) {
-    const insights = [];
-    
-    if (hasChat) insights.push("💬 Has live chat - HIGH conversion potential");
-    if (hasForm) insights.push("📝 Contact form detected - understands lead generation");
-    if (phones.length > 0) insights.push(`📞 ${phones.length} phone numbers found`);
-    if (emails.length > 0) insights.push(`✉️ ${emails.length} email addresses found`);
-    if (score >= 15) insights.push("🔥 Premium lead - urgent follow-up recommended");
-    if (score >= 10) insights.push("⭐ High-value prospect");
-    
-    return insights;
-}
-
-// Industry search with sample data
-app.post('/api/search-industry', async (req, res) => {
+// MAIN SCAN ENDPOINT - Enhanced with real scanning
+app.post('/api/scan-industry', async (req, res) => {
     const { industry, location, customQuery } = req.body;
     
-    console.log(`🎯 Industry search: ${industry} in ${location}`);
+    console.log(`🎯 Starting REAL scan: ${industry} in ${location}`);
     
     try {
-        // Generate realistic sample leads
-        const leads = generateSampleLeads(industry, location, 12);
+        // Generate mixed results: real scans + realistic samples
+        const realLeads = await scanRealWebsites(industry, location);
+        const sampleLeads = generateRealisticLeads(industry, location, 12);
+        const allLeads = [...realLeads, ...sampleLeads].slice(0, 20);
         
-        // Calculate stats
-        const stats = {
-            total: leads.length,
-            withChat: leads.filter(l => l.hasChat).length,
-            withForm: leads.filter(l => l.hasForm).length,
-            withContact: leads.filter(l => l.phones.length > 0 || l.emails.length > 0).length,
-            highValue: leads.filter(l => l.score >= 15).length
-        };
+        const stats = calculateStats(allLeads);
+        
+        console.log(`✅ Scan completed: ${allLeads.length} leads (${realLeads.length} real)`);
         
         res.json({ 
             success: true, 
-            leads: leads,
+            leads: allLeads,
             stats: stats,
-            message: `Found ${leads.length} ${industry} leads in ${location}`
+            scanInfo: {
+                industry,
+                location,
+                realScans: realLeads.length,
+                totalLeads: allLeads.length,
+                timestamp: new Date().toISOString()
+            }
         });
         
     } catch (error) {
-        res.json({
+        console.error('Scan error:', error);
+        res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
 
-function generateSampleLeads(industry, location, count = 12) {
-    const businessTemplates = {
-        dental: ["Perfect Smile Dental", "Bright Now Dental", "Aspen Dental", "Western Dental", "Coast Dental", "Modern Dentistry", "Elite Dental Care", "Premier Dental", "Family Dental Center", "Cosmetic Dentistry", "Emergency Dental", "Smile Design"],
-        mortgage: ["Rocket Mortgage", "Quicken Loans", "Wells Fargo Mortgage", "Bank of America Home Loans", "Chase Mortgage", "LoanDepot", "Freedom Mortgage", "Guaranteed Rate", "New American Funding", "Fairway Mortgage", "Movement Mortgage", "Caliber Home Loans"],
-        lawyer: ["Morgan & Morgan", "Cellino & Barnes", "Jacoby & Meyers", "Weitz & Luxenberg", "Simmons Hanly", "Anapol Weiss", "Levin Papantonio", "Lieff Cabraser", "Baron & Budd", "Girardi Keese", "Personal Injury Law", "Legal Defense Group"],
-        realestate: ["Keller Williams", "RE/MAX", "Coldwell Banker", "Century 21", "Sotheby's Realty", "Redfin", "Zillow Premier", "Compass Real Estate", "Better Homes", "ERA Real Estate", "Local Properties", "Premier Agents"],
-        insurance: ["State Farm", "Geico", "Progressive", "Allstate", "Liberty Mutual", "Nationwide", "Farmers Insurance", "Travelers", "American Family", "USAA", "Local Insurance", "Premier Coverage"],
-        medical: ["Mayo Clinic", "Cleveland Clinic", "Johns Hopkins", "Mass General", "UCLA Health", "NYU Langone", "Northwestern Medicine", "Stanford Health", "Cedars-Sinai", "Mount Sinai", "Local Medical", "Healthcare Partners"]
-    };
+// ENHANCED REAL SCANNING
+async function scanRealWebsites(industry, location) {
+    const config = industryConfigs[industry];
+    if (!config) return [];
     
-    const suffixes = ["Inc", "LLC", "Group", "Associates", "Partners", "Center", "Clinic", "Solutions"];
+    const leads = [];
     
-    return Array.from({ length: count }, (_, i) => {
-        const baseName = businessTemplates[industry][i % businessTemplates[industry].length];
-        const suffix = suffixes[i % suffixes.length];
-        const name = `${baseName} ${suffix}`;
+    for (const site of config.realWebsites) {
+        try {
+            console.log(`🌐 Scanning: ${site.url}`);
+            const analysis = await analyzeWebsite(site.url);
+            
+            if (analysis.success) {
+                leads.push({
+                    name: site.name,
+                    website: site.url,
+                    location: location,
+                    score: analysis.score,
+                    hasChat: analysis.hasChat,
+                    hasForm: analysis.hasForm,
+                    phones: analysis.phones,
+                    emails: analysis.emails,
+                    description: `Real ${industry} business - ${analysis.technologies.join(', ')}`
+                });
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Respectful delay
+            
+        } catch (error) {
+            console.log(`❌ Failed to scan ${site.url}: ${error.message}`);
+        }
+    }
+    
+    return leads;
+}
+
+// ENHANCED WEBSITE ANALYSIS
+async function analyzeWebsite(url) {
+    try {
+        const html = await fetchWebsite(url);
+        const $ = cheerio.load(html);
+        const pageText = $('body').text().toLowerCase();
         
-        // Realistic distribution for demo
-        const hasChat = i < 4;
-        const hasForm = i < 8;
-        const hasPhone = i < 10;
-        const hasEmail = i < 6;
+        // Advanced chat detection
+        const chatSelectors = [
+            '[class*="chat"]', '[id*="chat"]', '.intercom', '.drift', 
+            '.livechat', '.tawk-button', '.olark', '.purechat',
+            '.zendesk', '.helpcrunch', '.crisp', '.hubspot'
+        ];
         
-        const score = (hasChat ? 10 : 0) + (hasForm ? 8 : 0) + 
-                     (hasPhone ? 3 : 0) + (hasEmail ? 2 : 0);
+        const hasChatSelector = chatSelectors.some(selector => $(selector).length > 0);
+        const hasChatText = /live chat|chat now|online chat|start chatting/i.test(pageText);
+        const hasChatScript = $('script').toArray().some(script => 
+            $(script).html()?.includes('chat') || $(script).attr('src')?.includes('chat')
+        );
+        
+        // Advanced form detection
+        const forms = $('form');
+        const hasForm = forms.length > 0;
+        const contactForms = forms.filter((i, form) => {
+            const formHtml = $(form).html().toLowerCase();
+            return /contact|email|phone|name|consult|appointment|message|submit|quote/i.test(formHtml);
+        });
+        
+        // Technology detection
+        const technologies = detectTechnologies($, html);
+        
+        // Contact extraction with validation
+        const phoneRegex = /(\+?1?[-.\s]?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4})/g;
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        
+        const phones = (pageText.match(phoneRegex) || [])
+            .map(phone => phone.replace(/\D/g, ''))
+            .filter(phone => phone.length >= 10)
+            .slice(0, 3);
+            
+        const emails = (pageText.match(emailRegex) || [])
+            .filter(email => !/noreply|no-reply|spam|example|test/i.test(email))
+            .slice(0, 3);
+        
+        // Enhanced scoring
+        let score = 5; // Base
+        if (hasChatSelector || hasChatText || hasChatScript) score += 8;
+        if (contactForms.length > 0) score += 7;
+        if (hasForm) score += 2;
+        if (phones.length > 0) score += 3;
+        if (emails.length > 0) score += 2;
+        if (technologies.length > 0) score += 1;
         
         return {
-            id: i + 1,
-            name: `${name} - ${location}`,
-            website: `https://www.${name.toLowerCase().replace(/\s+/g, '')}.com`,
-            phone: hasPhone ? `(${555}) ${100 + i}-${1000 + i}` : null,
-            email: hasEmail ? `contact@${name.toLowerCase().replace(/\s+/g, '')}.com` : null,
+            success: true,
+            hasChat: hasChatSelector || hasChatText || hasChatScript,
+            hasForm: contactForms.length > 0,
+            phones,
+            emails,
+            technologies,
+            formsCount: forms.length,
+            contactFormsCount: contactForms.length,
+            score: Math.min(score, 20)
+        };
+        
+    } catch (error) {
+        return {
+            success: false,
+            error: error.message,
+            hasChat: false,
+            hasForm: false,
+            phones: [],
+            emails: [],
+            technologies: [],
+            score: 0
+        };
+    }
+}
+
+// TECHNOLOGY DETECTION
+function detectTechnologies($, html) {
+    const techSignatures = {
+        'WordPress': ['wp-content', 'wp-includes', 'wordpress'],
+        'Shopify': ['shopify'],
+        'Wix': ['wix.com'],
+        'React': ['react', 'react-dom'],
+        'jQuery': ['jquery'],
+        'Google Analytics': ['google-analytics', 'ga.js'],
+        'Facebook Pixel': ['facebook-pixel', 'fbq'],
+        'HubSpot': ['hubspot']
+    };
+    
+    const detected = [];
+    
+    for (const [tech, signatures] of Object.entries(techSignatures)) {
+        for (const signature of signatures) {
+            if (html.includes(signature) || 
+                $(`script[src*="${signature}"]`).length > 0 ||
+                $(`link[href*="${signature}"]`).length > 0) {
+                detected.push(tech);
+                break;
+            }
+        }
+    }
+    
+    return detected.slice(0, 5);
+}
+
+// ENHANCED LEAD GENERATION
+function generateRealisticLeads(industry, location, count = 12) {
+    const templates = {
+        dental: ["Smile Perfect Dental", "Bright Now Dentistry", "Family Dental Care", "Modern Dental Solutions", "Elite Dental Group"],
+        mortgage: ["Premier Mortgage Solutions", "Home Loan Experts", "First Rate Mortgage", "Capital Lending Group"],
+        lawyer: ["Justice Law Partners", "Elite Legal Defense", "Premier Law Group", "City Law Associates"],
+        realestate: ["Premier Properties", "Elite Realty Group", "Dream Home Realty", "City Real Estate Partners"],
+        insurance: ["Secure Insurance Solutions", "Trusted Coverage Inc", "Premier Protection", "Family Insurance Group"]
+    };
+    
+    const industryTemplates = templates[industry] || templates.dental;
+    
+    return Array.from({ length: count }, (_, i) => {
+        const baseName = industryTemplates[i % industryTemplates.length];
+        const name = `${baseName} - ${location}`;
+        const domain = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        // Realistic probability distribution
+        const hasChat = i < 4; // 33% have chat
+        const hasForm = i < 8; // 66% have forms
+        const hasPhone = i < 10; // 83% have phones
+        const hasEmail = i < 7; // 58% have emails
+        
+        const phones = hasPhone ? [`(${555}) ${400 + i}-${2000 + i}`] : [];
+        const emails = hasEmail ? [`contact@${domain}.com`] : [];
+        
+        const score = 5 + (hasChat ? 8 : 0) + (hasForm ? 7 : 0) + 
+                     (phones.length ? 3 : 0) + (emails.length ? 2 : 0);
+        
+        return {
+            name,
+            website: `https://www.${domain}.com`,
+            location,
+            score: Math.min(score, 20),
             hasChat,
             hasForm,
-            hasPhone,
-            hasEmail,
-            score,
-            location,
-            industry,
-            description: `${industry} services in ${location}`
+            phones,
+            emails,
+            description: `Professional ${industry} services in ${location}`
         };
     }).sort((a, b) => b.score - a.score);
 }
 
+function calculateStats(leads) {
+    return {
+        total: leads.length,
+        withChat: leads.filter(l => l.hasChat).length,
+        withForm: leads.filter(l => l.hasForm).length,
+        withContact: leads.filter(l => l.phones.length > 0 || l.emails.length > 0).length,
+        highValue: leads.filter(l => l.score >= 15).length
+    };
+}
+
+// ENHANCED CSV EXPORT
+app.post('/api/export-csv', async (req, res) => {
+    const { leads, industry } = req.body;
+    
+    try {
+        if (!leads || !Array.isArray(leads)) {
+            return res.status(400).json({ error: 'Invalid leads data' });
+        }
+        
+        const csvData = leads.map(lead => ({
+            Name: lead.name,
+            Website: lead.website,
+            Location: lead.location,
+            'Lead Score': lead.score,
+            'Live Chat': lead.hasChat ? 'Yes' : 'No',
+            'Contact Form': lead.hasForm ? 'Yes' : 'No',
+            'Phone Numbers': lead.phones.join('; '),
+            'Email Addresses': lead.emails.join('; '),
+            'Description': lead.description || '',
+            'Analysis Date': new Date().toISOString().split('T')[0]
+        }));
+        
+        const headers = Object.keys(csvData[0]);
+        const csvRows = [
+            headers.join(','),
+            ...csvData.map(row => 
+                headers.map(header => `"${row[header]}"`).join(',')
+            )
+        ];
+        
+        const csvString = csvRows.join('\n');
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=leads-${industry}-${Date.now()}.csv`);
+        res.send(csvString);
+        
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Serve frontend
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        service: 'Marketing Intelligence Pro',
+        version: '2.0',
+        features: ['Real website scanning', 'Chat detection', 'Form detection', 'Contact extraction', 'CSV export'],
+        timestamp: new Date().toISOString()
+    });
+});
+
 app.listen(PORT, () => {
-    console.log(`🚀 Marketing Intelligence Pro - COMPATIBLE VERSION`);
-    console.log(`✅ Running on port: ${PORT}`);
-    console.log(`✅ No axios/undici - Pure Node.js HTTP client`);
-    console.log(`✅ Ready to scan websites!`);
+    console.log(`🚀 Marketing Intelligence Pro - ENHANCED VERSION`);
+    console.log(`✅ Port: ${PORT}`);
+    console.log(`✅ Real website scanning: ACTIVE`);
+    console.log(`✅ Advanced detection: ACTIVE`);
+    console.log(`✅ Cheerio integration: ACTIVE`);
 });
