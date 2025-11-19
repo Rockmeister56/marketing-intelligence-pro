@@ -35,6 +35,33 @@
         .export-btn { background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%); margin-top: 20px; }
         .real-time-log { background: #2c3e50; color: white; padding: 15px; border-radius: 10px; margin-top: 20px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; }
         .log-entry { margin-bottom: 5px; } .log-success { color: #2ecc71; } .log-warning { color: #f39c12; } .log-error { color: #e74c3c; }
+    
+        .ranking-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid;
+}
+
+.ranking-badge.sponsored {
+    background: #fff3cd;
+    color: #856404;
+    border-color: #ffeaa7;
+}
+
+.ranking-badge.organic {
+    background: #d1ecf1;
+    color: #0c5460;
+    border-color: #bee5eb;
+}
+
+.feature.map {
+    background: #e8f4f8;
+    border-color: #3498db;
+}
+    
     </style>
 </head>
 <body>
@@ -76,11 +103,13 @@
         
         <div class="results">
             <div class="stats" id="stats">
-                <div class="stat-card"><div class="stat-number" id="totalLeads">0</div><div class="stat-label">Total Leads</div></div>
-                <div class="stat-card"><div class="stat-number" id="chatLeads">0</div><div class="stat-label">With Live Chat</div></div>
-                <div class="stat-card"><div class="stat-number" id="formLeads">0</div><div class="stat-label">With Contact Forms</div></div>
-                <div class="stat-card"><div class="stat-number" id="contactLeads">0</div><div class="stat-label">With Contact Info</div></div>
-            </div>
+    <div class="stat-card"><div class="stat-number" id="totalLeads">0</div><div class="stat-label">Total Leads</div></div>
+    <div class="stat-card"><div class="stat-number" id="sponsoredLeads">0</div><div class="stat-label">Sponsored Ads</div></div>
+    <div class="stat-card"><div class="stat-number" id="firstPageLeads">0</div><div class="stat-label">First Page</div></div>
+    <div class="stat-card"><div class="stat-number" id="top3Leads">0</div><div class="stat-label">Top 3 Ranking</div></div>
+    <div class="stat-card"><div class="stat-number" id="chatLeads">0</div><div class="stat-label">With Live Chat</div></div>
+    <div class="stat-card"><div class="stat-number" id="formLeads">0</div><div class="stat-label">With Contact Forms</div></div>
+</div>
             
             <div class="progress-bar"><div class="progress" id="progressBar" style="width: 0%"></div></div>
             
@@ -182,46 +211,70 @@
             }
         }
 
-        function displayResults(leads, stats) {
-            // Update stats
-            totalLeads.textContent = stats.total;
-            chatLeads.textContent = stats.withChat;
-            formLeads.textContent = stats.withForm;
-            contactLeads.textContent = stats.withContact;
+       function displayResults(leads, stats) {
+    // Update stats
+    totalLeads.textContent = stats.total;
+    chatLeads.textContent = stats.withChat;
+    formLeads.textContent = stats.withForm;
+    contactLeads.textContent = stats.withContact;
 
-            // Display leads
-            leadsContainer.innerHTML = leads.map(lead => `
-                <div class="lead-card">
-                    <div class="lead-score ${lead.score >= 10 ? 'score-high' : lead.score >= 5 ? 'score-medium' : 'score-low'}">
-                        Lead Score: ${lead.score}/20
-                    </div>
-                    <h3>${lead.name}</h3>
-                    <p>📍 ${lead.location} | 🌐 <a href="${lead.website}" target="_blank">${lead.website}</a></p>
-                    
-                    <div class="lead-features">
-                        ${lead.hasChat ? '<span class="feature chat">💬 Live Chat</span>' : ''}
-                        ${lead.hasForm ? '<span class="feature form">📝 Contact Form</span>' : ''}
-                        ${lead.phones.length > 0 ? `<span class="feature phone">📞 ${lead.phones[0]}</span>` : ''}
-                        ${lead.emails.length > 0 ? `<span class="feature email">✉️ ${lead.emails[0]}</span>` : ''}
-                    </div>
-                    
-                    <div style="margin-top: 10px; font-size: 14px; color: #7f8c8d;">
-                        ${getLeadInsights(lead)}
-                    </div>
+    // Display leads with ranking information
+    leadsContainer.innerHTML = leads.map(lead => `
+        <div class="lead-card">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                <div class="lead-score ${lead.score >= 15 ? 'score-high' : lead.score >= 8 ? 'score-medium' : 'score-low'}">
+                    Lead Score: ${lead.score}/20
                 </div>
-            `).join('');
-        }
-
-        function getLeadInsights(lead) {
-            const insights = [];
-            if (lead.hasChat) insights.push("• Has live chat = HIGH conversion potential");
-            if (lead.hasForm) insights.push("• Uses contact forms = understands lead generation");
-            if (lead.phones.length > 0) insights.push("• Phone number available = easy to contact");
-            if (lead.emails.length > 0) insights.push("• Email address found = can send automated follow-up");
-            if (lead.score >= 15) insights.push("• Premium lead - urgent follow-up recommended");
+                <div class="ranking-badge ${lead.isSponsored ? 'sponsored' : 'organic'}">
+                    ${lead.rankingBadge}
+                    ${lead.googlePosition ? `#${lead.googlePosition}` : ''}
+                </div>
+            </div>
             
-            return insights.join('<br>');
-        }
+            <h3>${lead.name}</h3>
+            <p>📍 ${lead.location} | 🌐 <a href="${lead.website}" target="_blank">${lead.website}</a></p>
+            
+            <div class="lead-features">
+                ${lead.hasChat ? '<span class="feature chat">💬 Live Chat</span>' : ''}
+                ${lead.hasForm ? '<span class="feature form">📝 Contact Form</span>' : ''}
+                ${lead.phones.length > 0 ? `<span class="feature phone">📞 ${lead.phones[0]}</span>` : ''}
+                ${lead.emails.length > 0 ? `<span class="feature email">✉️ ${lead.emails[0]}</span>` : ''}
+                ${lead.mapPresence ? '<span class="feature map">🗺️ Google Maps</span>' : ''}
+            </div>
+            
+            <div style="margin-top: 10px; font-size: 14px; color: #7f8c8d;">
+                ${getEnhancedLeadInsights(lead)}
+            </div>
+            
+            <div style="margin-top: 8px; font-size: 12px; background: #f8f9fa; padding: 8px; border-radius: 8px;">
+                <strong>Google Ranking Insights:</strong><br>
+                • Position: #${lead.googlePosition} ${lead.isSponsored ? '(Sponsored)' : '(Organic)'}<br>
+                • Ad Spend Likelihood: <strong>${lead.adSpendLikelihood}</strong><br>
+                • ${lead.rankingSource.replace(/_/g, ' ').toUpperCase()}
+            </div>
+        </div>
+    `).join('');
+}
+
+   function getLeadInsights(lead) {
+    const insights = [];
+    
+    // NEW: Google ranking insights (added at the top)
+    if (lead.isSponsored) insights.push("• 🔥 SPONSORED AD - High marketing budget");
+    if (lead.googlePosition <= 3 && !lead.isSponsored) insights.push("• 🥇 Top 3 organic - Strong SEO presence");
+    if (lead.googlePosition <= 8) insights.push("• ⭐ First page ranking - High visibility");
+    if (lead.mapPresence) insights.push("• 🗺️ Google Maps presence - Local SEO optimized");
+    if (lead.adSpendLikelihood === 'Very High') insights.push("• 💰 High ad spend likelihood");
+    
+    // EXISTING: Original insights (enhanced with emojis)
+    if (lead.hasChat) insights.push("• 💬 Live chat = HIGH conversion potential");
+    if (lead.hasForm) insights.push("• 📝 Contact forms = understands lead generation");
+    if (lead.phones.length > 0) insights.push("• 📞 Phone number available = easy to contact");
+    if (lead.emails.length > 0) insights.push("• ✉️ Email address found = automated follow-up possible");
+    if (lead.score >= 15) insights.push("• 🚀 PREMIUM LEAD - urgent follow-up recommended");
+    
+    return insights.join('<br>');
+}
 
         async function exportToCSV() {
             if (currentLeads.length === 0) return;

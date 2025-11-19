@@ -290,6 +290,154 @@ function detectTechnologies($, html) {
     return detected.slice(0, 5);
 }
 
+// ENHANCED: Google ranking simulation with sponsored detection
+function simulateGoogleRanking(leads, industry, location) {
+    return leads.map((lead, index) => {
+        // Realistic ranking distribution
+        let position, isSponsored, rankingSource;
+        
+        if (index < 3) {
+            // Top 3 are often sponsored or organic top positions
+            position = index + 1;
+            isSponsored = index < 2; // First 2 are sponsored
+            rankingSource = isSponsored ? 'google_ads' : 'organic_top';
+        } else if (index < 8) {
+            // Positions 4-8 are organic first page
+            position = index + 1;
+            isSponsored = false;
+            rankingSource = 'organic_first_page';
+        } else if (index < 15) {
+            // Positions 9-15 are second page
+            position = index + 1;
+            isSponsored = false;
+            rankingSource = 'organic_second_page';
+        } else {
+            // Remaining are lower rankings
+            position = index + 1;
+            isSponsored = false;
+            rankingSource = 'organic_lower';
+        }
+        
+        // Add ranking data to lead
+        return {
+            ...lead,
+            googlePosition: position,
+            isSponsored,
+            rankingSource,
+            rankingBadge: getRankingBadge(position, isSponsored),
+            rankingScore: calculateRankingScore(position, isSponsored),
+            mapPresence: hasGoogleMapsPresence(lead, index),
+            adSpendLikelihood: calculateAdSpendLikelihood(lead, position, isSponsored)
+        };
+    });
+}
+
+// Calculate ranking-based score
+function calculateRankingScore(position, isSponsored) {
+    let score = 0;
+    
+    if (isSponsored) {
+        score = 25; // Highest score for sponsored ads
+    } else if (position <= 3) {
+        score = 20; // Top organic positions
+    } else if (position <= 8) {
+        score = 15; // First page organic
+    } else if (position <= 15) {
+        score = 10; // Second page
+    } else {
+        score = 5; // Lower pages
+    }
+    
+    return score;
+}
+
+// Generate ranking badges
+function getRankingBadge(position, isSponsored) {
+    if (isSponsored) {
+        return '🔥 Sponsored Ad';
+    } else if (position <= 3) {
+        return '🥇 Top Organic';
+    } else if (position <= 8) {
+        return '⭐ First Page';
+    } else if (position <= 15) {
+        return '📄 Second Page';
+    } else {
+        return '🔍 Lower Ranking';
+    }
+}
+
+// Simulate Google Maps presence
+function hasGoogleMapsPresence(lead, index) {
+    // Higher ranked leads are more likely to have Maps presence
+    const probability = Math.max(0.7 - (index * 0.05), 0.2);
+    return Math.random() < probability;
+}
+
+// Calculate ad spend likelihood
+function calculateAdSpendLikelihood(lead, position, isSponsored) {
+    let likelihood = 'Low';
+    
+    if (isSponsored) {
+        likelihood = 'Very High';
+    } else if (position <= 3) {
+        likelihood = 'High';
+    } else if (position <= 8 && lead.hasChat) {
+        likelihood = 'Medium-High';
+    } else if (position <= 8) {
+        likelihood = 'Medium';
+    } else if (lead.hasChat || lead.hasForm) {
+        likelihood = 'Low-Medium';
+    }
+    
+    return likelihood;
+}
+
+// Enhanced lead generation with ranking data
+function generateRealisticLeads(industry, location, count = 15) {
+    const templates = {
+        dental: ["Smile Perfect Dental", "Bright Now Dentistry", "Family Dental Care", "Modern Dental Solutions", "Elite Dental Group"],
+        mortgage: ["Premier Mortgage Solutions", "Home Loan Experts", "First Rate Mortgage", "Capital Lending Group"],
+        lawyer: ["Justice Law Partners", "Elite Legal Defense", "Premier Law Group", "City Law Associates"],
+        realestate: ["Premier Properties", "Elite Realty Group", "Dream Home Realty", "City Real Estate Partners"],
+        insurance: ["Secure Insurance Solutions", "Trusted Coverage Inc", "Premier Protection", "Family Insurance Group"]
+    };
+    
+    const industryTemplates = templates[industry] || templates.dental;
+    
+    const baseLeads = Array.from({ length: count }, (_, i) => {
+        const baseName = industryTemplates[i % industryTemplates.length];
+        const name = `${baseName} - ${location}`;
+        const domain = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        // Realistic probability distribution
+        const hasChat = i < 4; // 33% have chat
+        const hasForm = i < 8; // 66% have forms
+        const hasPhone = i < 10; // 83% have phones
+        const hasEmail = i < 7; // 58% have emails
+        
+        const phones = hasPhone ? [`(${555}) ${400 + i}-${2000 + i}`] : [];
+        const emails = hasEmail ? [`contact@${domain}.com`] : [];
+        
+        const baseScore = 5 + (hasChat ? 8 : 0) + (hasForm ? 7 : 0) + 
+                         (phones.length ? 3 : 0) + (emails.length ? 2 : 0);
+        
+        return {
+            name,
+            website: `https://www.${domain}.com`,
+            location,
+            score: Math.min(baseScore, 20),
+            hasChat,
+            hasForm,
+            phones,
+            emails,
+            description: `Professional ${industry} services in ${location}`
+        };
+    }).sort((a, b) => b.score - a.score);
+    
+    // Add ranking data
+    return simulateGoogleRanking(baseLeads, industry, location);
+}
+
 // ENHANCED LEAD GENERATION
 function generateRealisticLeads(industry, location, count = 12) {
     const templates = {
@@ -333,13 +481,21 @@ function generateRealisticLeads(industry, location, count = 12) {
     }).sort((a, b) => b.score - a.score);
 }
 
+// Add this to your stats calculation in server.js
 function calculateStats(leads) {
+    const sponsoredCount = leads.filter(l => l.isSponsored).length;
+    const firstPageCount = leads.filter(l => l.googlePosition <= 8).length;
+    const top3Count = leads.filter(l => l.googlePosition <= 3).length;
+    
     return {
         total: leads.length,
         withChat: leads.filter(l => l.hasChat).length,
         withForm: leads.filter(l => l.hasForm).length,
         withContact: leads.filter(l => l.phones.length > 0 || l.emails.length > 0).length,
-        highValue: leads.filter(l => l.score >= 15).length
+        highValue: leads.filter(l => l.score >= 15).length,
+        sponsored: sponsoredCount,
+        firstPage: firstPageCount,
+        top3: top3Count
     };
 }
 
