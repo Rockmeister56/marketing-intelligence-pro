@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marketing Intelligence Pro - REAL Scraping</title>
+    <style>
+        /* (Keep all the same beautiful CSS from previous version) */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%); color: white; padding: 30px; text-align: center; }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; font-weight: 700; }
+        .controls { padding: 30px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; }
+        select, input, button { width: 100%; padding: 12px 15px; border: 2px solid #e9ecef; border-radius: 10px; font-size: 16px; transition: all 0.3s ease; }
+        button { background: linear-gradient(135deg, #3498db 0%, #2c3e50 100%); color: white; border: none; cursor: pointer; font-weight: 600; margin-top: 10px; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(52, 152, 219, 0.3); }
+        button:disabled { background: #bdc3c7; cursor: not-allowed; transform: none; }
+        .results { padding: 30px; max-height: 600px; overflow-y: auto; }
+        .lead-card { background: white; border: 2px solid #e9ecef; border-radius: 15px; padding: 20px; margin-bottom: 15px; transition: all 0.3s ease; }
+        .lead-card:hover { border-color: #3498db; transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .lead-score { display: inline-block; padding: 5px 12px; border-radius: 20px; font-weight: 600; font-size: 14px; margin-bottom: 10px; }
+        .score-high { background: #e8f5e8; color: #27ae60; } .score-medium { background: #fff3cd; color: #f39c12; } .score-low { background: #fdeaea; color: #e74c3c; }
+        .lead-features { display: flex; gap: 15px; margin: 10px 0; flex-wrap: wrap; }
+        .feature { padding: 5px 12px; background: #f8f9fa; border-radius: 15px; font-size: 14px; border: 1px solid #e9ecef; }
+        .feature.chat { background: #e8f5e8; border-color: #27ae60; } .feature.form { background: #fff3cd; border-color: #f39c12; }
+        .feature.phone { background: #e3f2fd; border-color: #3498db; } .feature.email { background: #f3e5f5; border-color: #9b59b6; }
+        .progress-bar { width: 100%; height: 8px; background: #e9ecef; border-radius: 10px; margin: 20px 0; overflow: hidden; }
+        .progress { height: 100%; background: linear-gradient(90deg, #3498db, #2c3e50); border-radius: 10px; transition: width 0.3s ease; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 20px; border-radius: 15px; border: 2px solid #e9ecef; text-align: center; }
+        .stat-number { font-size: 2em; font-weight: 700; color: #2c3e50; } .stat-label { color: #7f8c8d; font-size: 14px; margin-top: 5px; }
+        .export-btn { background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%); margin-top: 20px; }
+        .real-time-log { background: #2c3e50; color: white; padding: 15px; border-radius: 10px; margin-top: 20px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+        .log-entry { margin-bottom: 5px; } .log-success { color: #2ecc71; } .log-warning { color: #f39c12; } .log-error { color: #e74c3c; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Marketing Intelligence Pro</h1>
+            <p>REAL Google Scraping + Advanced Website Analysis</p>
+        </div>
+        
+        <div class="controls">
+            <div class="form-group">
+                <label for="industry">Select Industry:</label>
+                <select id="industry">
+                    <option value="dental">🦷 Dental Practices</option>
+                    <option value="mortgage">🏠 Mortgage Lenders</option>
+                    <option value="lawyer">⚖️ Law Firms</option>
+                    <option value="realestate">🏢 Real Estate</option>
+                    <option value="insurance">🛡️ Insurance</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="location">Location:</label>
+                <input type="text" id="location" placeholder="e.g., New York, NY" value="New York, NY">
+            </div>
+            
+            <div class="form-group">
+                <label for="searchQuery">Search Query:</label>
+                <input type="text" id="searchQuery" placeholder="Custom search query">
+            </div>
+            
+            <button id="scanBtn">🔍 Start Real Scan</button>
+            <button id="exportBtn" class="export-btn" disabled>📊 Export to CSV</button>
+            
+            <div class="real-time-log" id="realTimeLog">
+                <div class="log-entry">🚀 Ready to scan! Select industry and location above.</div>
+            </div>
+        </div>
+        
+        <div class="results">
+            <div class="stats" id="stats">
+                <div class="stat-card"><div class="stat-number" id="totalLeads">0</div><div class="stat-label">Total Leads</div></div>
+                <div class="stat-card"><div class="stat-number" id="chatLeads">0</div><div class="stat-label">With Live Chat</div></div>
+                <div class="stat-card"><div class="stat-number" id="formLeads">0</div><div class="stat-label">With Contact Forms</div></div>
+                <div class="stat-card"><div class="stat-number" id="contactLeads">0</div><div class="stat-label">With Contact Info</div></div>
+            </div>
+            
+            <div class="progress-bar"><div class="progress" id="progressBar" style="width: 0%"></div></div>
+            
+            <div id="leadsContainer">
+                <div style="text-align: center; padding: 40px; color: #7f8c8d;">
+                    <h3>👆 Configure your search and click "Start Real Scan"</h3>
+                    <p>We'll perform REAL Google searches and scan websites for chat widgets, forms, and contact information.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM elements
+        const scanBtn = document.getElementById('scanBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const industrySelect = document.getElementById('industry');
+        const locationInput = document.getElementById('location');
+        const searchQueryInput = document.getElementById('searchQuery');
+        const leadsContainer = document.getElementById('leadsContainer');
+        const progressBar = document.getElementById('progressBar');
+        const realTimeLog = document.getElementById('realTimeLog');
+        const totalLeads = document.getElementById('totalLeads');
+        const chatLeads = document.getElementById('chatLeads');
+        const formLeads = document.getElementById('formLeads');
+        const contactLeads = document.getElementById('contactLeads');
+
+        let currentLeads = [];
+
+        // Industry configurations
+        const industryConfigs = {
+            dental: { searchQuery: "best dental {location}" },
+            mortgage: { searchQuery: "mortgage lenders {location}" },
+            lawyer: { searchQuery: "best attorneys {location}" },
+            realestate: { searchQuery: "real estate agents {location}" },
+            insurance: { searchQuery: "insurance companies {location}" }
+        };
+
+        // Event listeners
+        scanBtn.addEventListener('click', startRealScan);
+        exportBtn.addEventListener('click', exportToCSV);
+        industrySelect.addEventListener('change', updateSearchQuery);
+
+        function updateSearchQuery() {
+            const industry = industrySelect.value;
+            const location = locationInput.value;
+            const config = industryConfigs[industry];
+            
+            if (config) {
+                searchQueryInput.value = config.searchQuery.replace('{location}', location);
+            }
+        }
+
+        function addLog(message, type = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            realTimeLog.appendChild(logEntry);
+            realTimeLog.scrollTop = realTimeLog.scrollHeight;
+        }
+
+        async function startRealScan() {
+            const industry = industrySelect.value;
+            const location = locationInput.value;
+            const searchQuery = searchQueryInput.value;
+
+            scanBtn.disabled = true;
+            scanBtn.textContent = '🔄 Scanning...';
+            progressBar.style.width = '10%';
+            realTimeLog.innerHTML = '';
+            currentLeads = [];
+
+            addLog('🚀 Starting REAL industry scan...', 'success');
+            addLog(`Industry: ${industry} | Location: ${location}`, 'info');
+
+            try {
+                const response = await fetch('/api/scan-industry', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ industry, location, customQuery: searchQuery })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    addLog(`✅ Scan completed! Found ${data.leads.length} qualified leads`, 'success');
+                    currentLeads = data.leads;
+                    displayResults(data.leads, data.stats);
+                } else {
+                    addLog(`❌ Scan failed: ${data.error}`, 'error');
+                }
+
+            } catch (error) {
+                addLog(`❌ Network error: ${error.message}`, 'error');
+            } finally {
+                scanBtn.disabled = false;
+                scanBtn.textContent = '🔍 Start Real Scan';
+                exportBtn.disabled = currentLeads.length === 0;
+            }
+        }
+
+        function displayResults(leads, stats) {
+            // Update stats
+            totalLeads.textContent = stats.total;
+            chatLeads.textContent = stats.withChat;
+            formLeads.textContent = stats.withForm;
+            contactLeads.textContent = stats.withContact;
+
+            // Display leads
+            leadsContainer.innerHTML = leads.map(lead => `
+                <div class="lead-card">
+                    <div class="lead-score ${lead.score >= 10 ? 'score-high' : lead.score >= 5 ? 'score-medium' : 'score-low'}">
+                        Lead Score: ${lead.score}/20
+                    </div>
+                    <h3>${lead.name}</h3>
+                    <p>📍 ${lead.location} | 🌐 <a href="${lead.website}" target="_blank">${lead.website}</a></p>
+                    
+                    <div class="lead-features">
+                        ${lead.hasChat ? '<span class="feature chat">💬 Live Chat</span>' : ''}
+                        ${lead.hasForm ? '<span class="feature form">📝 Contact Form</span>' : ''}
+                        ${lead.phones.length > 0 ? `<span class="feature phone">📞 ${lead.phones[0]}</span>` : ''}
+                        ${lead.emails.length > 0 ? `<span class="feature email">✉️ ${lead.emails[0]}</span>` : ''}
+                    </div>
+                    
+                    <div style="margin-top: 10px; font-size: 14px; color: #7f8c8d;">
+                        ${getLeadInsights(lead)}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getLeadInsights(lead) {
+            const insights = [];
+            if (lead.hasChat) insights.push("• Has live chat = HIGH conversion potential");
+            if (lead.hasForm) insights.push("• Uses contact forms = understands lead generation");
+            if (lead.phones.length > 0) insights.push("• Phone number available = easy to contact");
+            if (lead.emails.length > 0) insights.push("• Email address found = can send automated follow-up");
+            if (lead.score >= 15) insights.push("• Premium lead - urgent follow-up recommended");
+            
+            return insights.join('<br>');
+        }
+
+        async function exportToCSV() {
+            if (currentLeads.length === 0) return;
+
+            try {
+                const industry = industrySelect.value;
+                const response = await fetch('/api/export-csv', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ leads: currentLeads, industry })
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `leads-${industry}-${new Date().toISOString().split('T')[0]}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    addLog('📊 CSV exported successfully!', 'success');
+                } else {
+                    addLog('❌ CSV export failed', 'error');
+                }
+            } catch (error) {
+                addLog(`❌ Export error: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize
+        updateSearchQuery();
+        addLog('✅ Marketing Intelligence Pro v2.0 Ready!', 'success');
+        addLog('🔍 Real Google scraping + website analysis enabled', 'info');
+    </script>
+</body>
+</html>
