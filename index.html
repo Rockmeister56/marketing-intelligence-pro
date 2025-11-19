@@ -216,53 +216,76 @@ const top3Leads = document.getElementById('top3Leads');
 
     // Update stats
     function displayResults(leads, stats) {
-    // Update ALL stats (including the new ones)
-    if (totalLeads) totalLeads.textContent = stats.total;
-    if (chatLeads) chatLeads.textContent = stats.withChat;
-    if (formLeads) formLeads.textContent = stats.withForm;
-    if (contactLeads) contactLeads.textContent = stats.withContact;
+    console.log('Received leads:', leads); // Debug log
+    console.log('Received stats:', stats); // Debug log
     
-    // NEW: Update ranking stats (safely)
-    if (sponsoredLeads) sponsoredLeads.textContent = stats.sponsored || 0;
-    if (firstPageLeads) firstPageLeads.textContent = stats.firstPage || 0;
-    if (top3Leads) top3Leads.textContent = stats.top3 || 0;
+    // Safely update stats with fallbacks
+    totalLeads.textContent = stats?.total || 0;
+    chatLeads.textContent = stats?.withChat || 0;
+    formLeads.textContent = stats?.withForm || 0;
+    contactLeads.textContent = stats?.withContact || 0;
+    
+    // Safely update ranking stats (if they exist)
+    if (sponsoredLeads) sponsoredLeads.textContent = stats?.sponsored || 0;
+    if (firstPageLeads) firstPageLeads.textContent = stats?.firstPage || 0;
+    if (top3Leads) top3Leads.textContent = stats?.top3 || 0;
 
-    // Display leads with ranking information
-    leadsContainer.innerHTML = leads.map(lead => `
-        <div class="lead-card">
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
-                <div class="lead-score ${lead.score >= 15 ? 'score-high' : lead.score >= 8 ? 'score-medium' : 'score-low'}">
-                    Lead Score: ${lead.score}/20
+    // Display leads with safe data handling
+    leadsContainer.innerHTML = leads.map(lead => {
+        // Safely handle potentially missing data
+        const safeLead = {
+            name: lead.name || 'Unknown Business',
+            website: lead.website || '#',
+            location: lead.location || 'Unknown Location',
+            score: lead.score || 0,
+            hasChat: lead.hasChat || false,
+            hasForm: lead.hasForm || false,
+            phones: lead.phones || [],
+            emails: lead.emails || [],
+            googlePosition: lead.googlePosition || 99,
+            isSponsored: lead.isSponsored || false,
+            rankingSource: lead.rankingSource || 'organic_unknown',
+            rankingBadge: lead.rankingBadge || 'Unknown Ranking',
+            mapPresence: lead.mapPresence || false,
+            adSpendLikelihood: lead.adSpendLikelihood || 'Unknown'
+        };
+        
+        return `
+            <div class="lead-card">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                    <div class="lead-score ${safeLead.score >= 15 ? 'score-high' : safeLead.score >= 8 ? 'score-medium' : 'score-low'}">
+                        Lead Score: ${safeLead.score}/20
+                    </div>
+                    <div class="ranking-badge ${safeLead.isSponsored ? 'sponsored' : 'organic'}">
+                        ${safeLead.rankingBadge}
+                        #${safeLead.googlePosition}
+                    </div>
                 </div>
-                <div class="ranking-badge ${lead.isSponsored ? 'sponsored' : 'organic'}">
-                    ${lead.rankingBadge}
-                    ${lead.googlePosition ? `#${lead.googlePosition}` : ''}
+                
+                <h3>${safeLead.name}</h3>
+                <p>📍 ${safeLead.location} | 🌐 <a href="${safeLead.website}" target="_blank">${safeLead.website}</a></p>
+                
+                <div class="lead-features">
+                    ${safeLead.hasChat ? '<span class="feature chat">💬 Live Chat</span>' : ''}
+                    ${safeLead.hasForm ? '<span class="feature form">📝 Contact Form</span>' : ''}
+                    ${safeLead.phones.length > 0 ? `<span class="feature phone">📞 ${safeLead.phones[0]}</span>` : ''}
+                    ${safeLead.emails.length > 0 ? `<span class="feature email">✉️ ${safeLead.emails[0]}</span>` : ''}
+                    ${safeLead.mapPresence ? '<span class="feature map">🗺️ Google Maps</span>' : ''}
+                </div>
+                
+                <div style="margin-top: 10px; font-size: 14px; color: #7f8c8d;">
+                    ${getLeadInsights(safeLead)}
+                </div>
+                
+                <div style="margin-top: 8px; font-size: 12px; background: #f8f9fa; padding: 8px; border-radius: 8px;">
+                    <strong>Google Ranking Insights:</strong><br>
+                    • Position: #${safeLead.googlePosition} ${safeLead.isSponsored ? '(Sponsored)' : '(Organic)'}<br>
+                    • Ad Spend Likelihood: <strong>${safeLead.adSpendLikelihood}</strong><br>
+                    • ${safeLead.rankingSource ? safeLead.rankingSource.replace(/_/g, ' ').toUpperCase() : 'RANKING UNAVAILABLE'}
                 </div>
             </div>
-            
-            <h3>${lead.name}</h3>
-            <p>📍 ${lead.location} | 🌐 <a href="${lead.website}" target="_blank">${lead.website}</a></p>
-            
-            <div class="lead-features">
-                ${lead.hasChat ? '<span class="feature chat">💬 Live Chat</span>' : ''}
-                ${lead.hasForm ? '<span class="feature form">📝 Contact Form</span>' : ''}
-                ${lead.phones.length > 0 ? `<span class="feature phone">📞 ${lead.phones[0]}</span>` : ''}
-                ${lead.emails.length > 0 ? `<span class="feature email">✉️ ${lead.emails[0]}</span>` : ''}
-                ${lead.mapPresence ? '<span class="feature map">🗺️ Google Maps</span>' : ''}
-            </div>
-            
-            <div style="margin-top: 10px; font-size: 14px; color: #7f8c8d;">
-                ${getLeadInsights(lead)}
-            </div>
-            
-            <div style="margin-top: 8px; font-size: 12px; background: #f8f9fa; padding: 8px; border-radius: 8px;">
-                <strong>Google Ranking Insights:</strong><br>
-                • Position: #${lead.googlePosition} ${lead.isSponsored ? '(Sponsored)' : '(Organic)'}<br>
-                • Ad Spend Likelihood: <strong>${lead.adSpendLikelihood}</strong><br>
-                • ${lead.rankingSource ? lead.rankingSource.replace(/_/g, ' ').toUpperCase() : 'RANKING UNAVAILABLE'}
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
    function getLeadInsights(lead) {

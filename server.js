@@ -1,3 +1,16 @@
+app.post('/api/debug-scan', (req, res) => {
+    const { industry, location } = req.body;
+    const leads = generateRealisticLeads(industry, location, 3); // Just 3 for testing
+    
+    console.log('Sample lead data:', JSON.stringify(leads[0], null, 2));
+    
+    res.json({
+        sampleLead: leads[0],
+        allLeads: leads,
+        stats: calculateStats(leads)
+    });
+});
+
 const express = require('express');
 const https = require('https');
 const http = require('http');
@@ -293,41 +306,36 @@ function detectTechnologies($, html) {
 // ENHANCED: Google ranking simulation with sponsored detection
 function simulateGoogleRanking(leads, industry, location) {
     return leads.map((lead, index) => {
-        // Realistic ranking distribution
         let position, isSponsored, rankingSource;
         
         if (index < 3) {
-            // Top 3 are often sponsored or organic top positions
             position = index + 1;
-            isSponsored = index < 2; // First 2 are sponsored
+            isSponsored = index < 2;
             rankingSource = isSponsored ? 'google_ads' : 'organic_top';
         } else if (index < 8) {
-            // Positions 4-8 are organic first page
             position = index + 1;
             isSponsored = false;
             rankingSource = 'organic_first_page';
         } else if (index < 15) {
-            // Positions 9-15 are second page
             position = index + 1;
             isSponsored = false;
             rankingSource = 'organic_second_page';
         } else {
-            // Remaining are lower rankings
             position = index + 1;
             isSponsored = false;
             rankingSource = 'organic_lower';
         }
         
-        // Add ranking data to lead
+        // Ensure ALL data is populated
         return {
             ...lead,
-            googlePosition: position,
-            isSponsored: isSponsored || false,
+            googlePosition: position || 99,
+            isSponsored: isSponsored !== undefined ? isSponsored : false,
             rankingSource: rankingSource || 'organic_unknown',
-            rankingBadge: getRankingBadge(position, isSponsored),
-            rankingScore: calculateRankingScore(position, isSponsored),
-            mapPresence: hasGoogleMapsPresence(lead, index),
-            adSpendLikelihood: calculateAdSpendLikelihood(lead, position, isSponsored)
+            rankingBadge: getRankingBadge(position, isSponsored) || 'Unknown Ranking',
+            rankingScore: calculateRankingScore(position, isSponsored) || 0,
+            mapPresence: hasGoogleMapsPresence(lead, index) || false,
+            adSpendLikelihood: calculateAdSpendLikelihood(lead, position, isSponsored) || 'Unknown'
         };
     });
 }
@@ -415,7 +423,7 @@ function generateRealisticLeads(industry, location, count = 15) {
         const hasPhone = i < 10; // 83% have phones
         const hasEmail = i < 7; // 58% have emails
         
-        const phones = hasPhone ? [`(${555}) ${400 + i}-${2000 + i}`] : [];
+        const phones = hasPhone ? [generateRealisticPhone(i)] : [];
         const emails = hasEmail ? [`contact@${domain}.com`] : [];
         
         const baseScore = 5 + (hasChat ? 8 : 0) + (hasForm ? 7 : 0) + 
@@ -436,6 +444,18 @@ function generateRealisticLeads(industry, location, count = 15) {
     
     // Add ranking data
     return simulateGoogleRanking(baseLeads, industry, location);
+}
+
+// Generate realistic phone numbers
+function generateRealisticPhone(index) {
+    const areaCodes = ['212', '310', '415', '312', '305', '702', '773', '347', '917', '646'];
+    const prefixes = ['555', '556', '557', '558', '559', '560', '561', '562', '563', '564'];
+    
+    const areaCode = areaCodes[Math.floor(Math.random() * areaCodes.length)];
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const lineNumber = 1000 + (index * 37) % 9000; // More random distribution
+    
+    return `(${areaCode}) ${prefix}-${lineNumber}`;
 }
 
 // ENHANCED LEAD GENERATION
