@@ -322,8 +322,8 @@ function simulateGoogleRanking(leads, industry, location) {
         return {
             ...lead,
             googlePosition: position,
-            isSponsored,
-            rankingSource,
+            isSponsored: isSponsored || false,
+            rankingSource: rankingSource || 'organic_unknown',
             rankingBadge: getRankingBadge(position, isSponsored),
             rankingScore: calculateRankingScore(position, isSponsored),
             mapPresence: hasGoogleMapsPresence(lead, index),
@@ -492,7 +492,6 @@ function calculateStats(leads) {
         withChat: leads.filter(l => l.hasChat).length,
         withForm: leads.filter(l => l.hasForm).length,
         withContact: leads.filter(l => l.phones.length > 0 || l.emails.length > 0).length,
-        highValue: leads.filter(l => l.score >= 15).length,
         sponsored: sponsoredCount,
         firstPage: firstPageCount,
         top3: top3Count

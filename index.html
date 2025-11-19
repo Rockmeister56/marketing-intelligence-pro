@@ -259,7 +259,7 @@ const top3Leads = document.getElementById('top3Leads');
                 <strong>Google Ranking Insights:</strong><br>
                 • Position: #${lead.googlePosition} ${lead.isSponsored ? '(Sponsored)' : '(Organic)'}<br>
                 • Ad Spend Likelihood: <strong>${lead.adSpendLikelihood}</strong><br>
-                • ${lead.rankingSource.replace(/_/g, ' ').toUpperCase()}
+                • ${lead.rankingSource ? lead.rankingSource.replace(/_/g, ' ').toUpperCase() : 'RANKING UNAVAILABLE'}
             </div>
         </div>
     `).join('');
